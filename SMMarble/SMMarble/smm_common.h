@@ -3,8 +3,11 @@
 //  SMMarble
 //
 //  Created by Juyeop Kim on 2023/11/05.
+//
+
 #ifndef smm_common_h
 #define smm_common_h
+
 #include <stdio.h>
 #include <stdlib.h>
 #define MAX_CHARNAME                200
@@ -18,8 +21,6 @@ typedef struct {
     int energy;
     char name[MAX_CHARNAME];
 } smm_player_t;
-
-extern smm_player_t* smm_players;
 
 
 #endif /* smm_common_h */

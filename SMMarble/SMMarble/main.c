@@ -15,25 +15,16 @@
 #define BOARDFILEPATH "marbleBoardConfig.txt"
 #define FOODFILEPATH "marbleFoodConfig.txt"
 #define FESTFILEPATH "marbleFestivalConfig.txt"
-
-
 //board configuration parameters
 static int board_nr;
 static int food_nr;
 static int festival_nr;
 static int player_nr;
 
-// player 배열방식 모두 삭제예정
-/*
-static int player_pos[MAX_PLAYER];
-static int player_credit[MAX_PLAYER];
-static char player_name[MAX_PLAYER][MAX_CHARNAME];
-static int player_energy[MAX_PLAYER];
-*/
-
-void generatePlayers(int n, int initEnergy); //generate a new player
-void printPlayerStatus(void); //print all player status at the beginning of each turn
-void goForward(int player, int step);
+// 변경 : players를 매개변수로 받도록 변경
+smm_player_t* generatePlayers(int n, int initEnergy);
+void printPlayerStatus(smm_player_t* players, int playerCount);
+void goForward(smm_player_t* players, int player, int step);
 
 //function prototypes
 #if 0
@@ -69,48 +60,52 @@ void* findGrade(int player, char *lectureName)
     return NULL;
 }
 
-void goForward(int player, int step)
+// 변경: smm_players → players 매개변수
+void goForward(smm_player_t* players, int player, int step)
 {
     printf("start from %i(%s) (%i)\n",
-           smm_players[player].pos,
-           getNodeNameByPos(smm_players[player].pos),
+           players[player].pos,                 // [변경]
+           getNodeNameByPos(players[player].pos),
            step);
 
     for (int i = 0; i < step; i++) {
-        smm_players[player].pos =
-            (smm_players[player].pos + 1) % board_nr;
+        players[player].pos =
+            (players[player].pos + 1) % board_nr;
 
         printf("  => moved to %i(%s)\n",
-               smm_players[player].pos,
-               getNodeNameByPos(smm_players[player].pos));
+               players[player].pos,
+               getNodeNameByPos(players[player].pos));
     }
 }
 
-void printPlayerStatus(void)
+// 변경 -> players를 인자로 받아 사용
+void printPlayerStatus(smm_player_t* players, int playerCount)
 {
-    for (int i = 0; i < player_nr; i++) {
+    for (int i = 0; i < playerCount; i++) {
         printf("%s - position:%i(%s), credit:%i, energy:%i\n",
-               smm_players[i].name,
-               smm_players[i].pos,
-               getNodeNameByPos(smm_players[i].pos),
-               smm_players[i].credit,
-               smm_players[i].energy);
+               players[i].name,                    // [변경]
+               players[i].pos,
+               getNodeNameByPos(players[i].pos),
+               players[i].credit,
+               players[i].energy);
     }
 }
 
-void generatePlayers(int n, int initEnergy)
+smm_player_t* generatePlayers(int n, int initEnergy)
 {
-    // [MOD] 플레이어 상태를 하나의 구조체 배열로 관리
-    smm_players = (smm_player_t*)malloc(sizeof(smm_player_t) * n);
+    smm_player_t* players =
+        (smm_player_t*)malloc(sizeof(smm_player_t) * n); // [변경]
 
-    for (int i = 0; i < n; i++) {
-        smm_players[i].pos = 0;
-        smm_players[i].credit = 0;
-        smm_players[i].energy = initEnergy;
+    for (int i =0; i < n; i++) {
+        players[i].pos = 0;
+        players[i].credit = 0;
+        players[i].energy = initEnergy;
 
         printf("Input %i-th player name: ", i);
-        scanf("%s", smm_players[i].name);
+        scanf("%s", players[i].name);
     }
+
+    return players; // [추가]
 }
 
 int rolldie(int player)
@@ -121,8 +116,8 @@ int rolldie(int player)
 
     c = getchar();
 
-    // [MOD] 엔터만 눌렀다면 OK
-    // [MOD] g를 눌렀다면 나머지 줄(\n)까지 버퍼 비우기
+    //엔터만 눌렀다면 OK
+    //g를 눌렀다면 나머지 줄(\n)까지 버퍼 비우기
     if (c == 'g') {
 #if 0
         printGrades(player);
@@ -197,7 +192,7 @@ int main(int argc, const char * argv[]) {
     while (fscanf(fp, "%s %i %i %i",
                       name, &type, &credit, &energy) == 4) {
 
-            // [MOD] board를 배열이 아닌 DB(list)에 저장
+            // board를 배열이 아닌 DB(list)에 저장
             void* node = smmObj_genObject(
                 name,
                 OBJTYPE_BOARD,   // objType
@@ -270,6 +265,7 @@ int main(int argc, const char * argv[]) {
             printf("Invalid player number!\n");
 
     }
+    
     while (player_nr <= 0 || player_nr > MAX_PLAYER);
     
     int initEnergy = 0;
@@ -280,11 +276,8 @@ int main(int argc, const char * argv[]) {
         }
     }
     
-    generatePlayers(player_nr, initEnergy);
-    
- //   generatePlayers(sum_player_nr, smmObj_getNodeEnergy(0));// 이미 계산한 initEnergy 사용예정
-    // FIX: 의미 없고 문법 깨지는 줄 삭제
-    // smmdb_getData(SMMNODE_OBJTYPE,0)
+    //extern 제거
+    smm_player_t* players = generatePlayers(player_nr, initEnergy);
     cnt = 0;
     turn = 0;
     //3. SM Marble game starts ---------------------------------------------------------------------------------
@@ -293,13 +286,14 @@ int main(int argc, const char * argv[]) {
         int die_result;
         
         //4-1. initial printing
-        printPlayerStatus();
+        printPlayerStatus(players, player_nr);
         
         //4-2. die rolling (if not in experiment)
         die_result = rolldie(turn);
         
         //4-3. go forward
-        goForward(turn, die_result);
+        goForward(players, turn, die_result);
+
         //pos = pos + 2;
         
         //4-4. take action at the destination node of the board
@@ -309,7 +303,6 @@ int main(int argc, const char * argv[]) {
         cnt++;
         turn = (turn + 1)%player_nr;
     }
-    free(smm_players);
-    system("PAUSE");
+    free(players);
     return 0;
 }
