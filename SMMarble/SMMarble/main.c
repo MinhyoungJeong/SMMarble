@@ -209,25 +209,36 @@ int main(int argc, const char * argv[]) {
     printf("Total number of board nodes : %i\n", board_nr);
     
     
-#if 0
     //2. food card config
-    if ((fp = fopen(FOODFILEPATH,"r")) == NULL)
+
+    if ((fp = fopen(FOODFILEPATH,"r")) == NULL) //오류나면 아래의 내용 print
     {
         printf("[ERROR] failed to open %s. This file should be in the same directory of SMMarble.exe.\n", FOODFILEPATH);
         return -1;
     }
-    //여기 업데이트 안된부분 업데이트 해놓기.
+
     printf("\n\nReading food card component......\n");
-    while () //read a food parameter set
-{
-    //store the parameter set
-    ptr = smmObj_ //여기는 11월 마지막주 수업 내용 참고
-    smm_board_nr = smmdb_addTail(LISTNO_NODE, ptr); //linkedlist에 데이터를 넣는 코드
-    
+    food_nr = 0; //food 객체 갯수 저장용
+    while (1)
+    {
+        
+        if (fscanf(fp, "%s %i", name, &energy) != 2) break; // name, energy 2를 반환하지 않으면 break
+
+        void* foodObj = smmObj_genObject(
+            name,           // name ok
+            OBJTYPE_FOOD,   // objType ok
+            0,              // type x
+            0,              // credit x
+            energy,         // energy ok
+            0               // grade x
+        );
+
+        smmdb_addTail(LISTNO_FOODCARD, foodObj); // 데이터베이스 리스트에 해당 객체를 추가
+        food_nr++; //food 객체 갯수 저장용
+    }
+
     fclose(fp);
     printf("Total number of food cards : %i\n", food_nr);
-}
-    
     
     //3. festival card config
     if ((fp = fopen(FESTFILEPATH,"r")) == NULL)
@@ -235,16 +246,33 @@ int main(int argc, const char * argv[]) {
         printf("[ERROR] failed to open %s. This file should be in the same directory of SMMarble.exe.\n", FESTFILEPATH);
         return -1;
     }
-    
+
     printf("\n\nReading festival card component......\n");
-    while () //read a festival card string
+
+    festival_nr = 0;
+    while (1)
     {
-        //store the parameter set
+        // 축제 config파일에서 한줄씩 읽어서 name 변수에 저장
+        if (fscanf(fp, "%s", name) != 1) break; //%s 로 한줄씩 읽음
+        //name 변수를 사용해서 아래의 구조체를 통해 객체를 하나 만든다.
+        void* festObj = smmObj_genObject(
+            name,
+            OBJTYPE_FEST,   // objType ok
+            0,              // type x
+            0,              // credit x
+            0,              // energy x
+            0               // grade x
+        );
+        // 데이터베이스 리스트에 해당 객체를 추가
+        smmdb_addTail(LISTNO_FESTCARD, festObj);
+        festival_nr++;
+        //festival_nr: 갯수 저장
     }
+
     fclose(fp);
     printf("Total number of festival cards : %i\n", festival_nr);
     
-#endif
+
     
     //2. Player configuration ---------------------------------------------------------------------------------
     

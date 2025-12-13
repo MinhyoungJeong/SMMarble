@@ -12,6 +12,15 @@
 #define OBJTYPE_GRADE 1
 #define OBJTYPE_FOOD  2
 #define OBJTYPE_FEST  3
+
+#define SMMNODE_TYPE_LECTURE                0
+#define SMMNODE_TYPE_RESTAURANT             1
+#define SMMNODE_TYPE_LABORATORY             2
+#define SMMNODE_TYPE_HOME                   3
+#define SMMNODE_TYPE_GOTOLAB                4
+#define SMMNODE_TYPE_FOODCHANGE             5
+#define SMMNODE_TYPE_FESTIVAL               6
+
 //object.c에 있던 enum을 헤더파일로 옮겨옴
 typedef enum {
     GRADE_A_PLUS,

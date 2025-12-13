@@ -1,10 +1,3 @@
-//
-//  smm_node.c
-//  SMMarble
-//
-//  Created by Juyeop Kim on 2023/11/05.
-//
-
 #include "smm_common.h"
 #include "smm_object.h"
 #include <string.h>
@@ -18,31 +11,6 @@
 #define OBJTYPE_GRADE 1
 #define OBJTYPE_FOOD 2
 #define OBJTYPE_FEST 3
-
-/* 우선 보류 - 수정중
-#define GRADE_A+ 0
-#define GRADE_A0 1
-#define GRADE_A- 2
-#define GRADE_B+ 3
-#define GRADE_B- 4
-#define GRADE_C+ 5
-#define GRADE_C0 6
-#define GRADE_C- 7
-#define GRADE_D+ 8
-#define GRADE_D0 9
-#define GRADE_D- 10
-#define GRADE_F 11
-*/
-
-#define SMMNODE_TYPE_LECTURE                0
-#define SMMNODE_TYPE_RESTAURANT             1
-#define SMMNODE_TYPE_LABORATORY             2
-#define SMMNODE_TYPE_HOME                   3
-#define SMMNODE_TYPE_GOTOLAB                4
-#define SMMNODE_TYPE_FOODCHANGE             5
-#define SMMNODE_TYPE_FESTIVAL               6
-
-
 
 static char smmNodeName[MAX_NODETYPE][MAX_CHARNAME] = {
        "lecture",
@@ -100,11 +68,11 @@ typedef struct {
 //배열 형태가 아니라 linkedlist - database에 넣기
 //object generation
 //node->확장시킬예정, 동적메모리형태로 할당하기
-void* smmObj_genObject(char* name, int objType, int type, int credit, int energy, GradeType grade)
+void* smmObj_genObject(char* name, int objType, int type, int credit, int energy, GradeType grade) // 구조체 생성 후 초기화
 {
     smmObj_object_t* ptr;
     ptr = (smmObj_object_t*)malloc(sizeof(smmObj_object_t));
-    strcpy(ptr->name, name);
+    strcpy(ptr->name, name); //함수 인자로 들어온 name 문자열의 내용을 새 구조체의 name에 복사
     ptr->type = type;
     ptr->objType = objType;
     ptr->credit = credit;
@@ -149,42 +117,3 @@ GradeType smmObj_getGrade(void* obj)
 {
     return castObj(obj)->grade;
 }
-
-//member retrieving - 추후 삭제예정
-#if 0
-char* smmObj_getName(int node_nr)
-{
-    return smmObj_board[node_nr].name;;
-}
-
-int smmObj_getType(int node_nr)
-{
-    return smmObj_board[node_nr].type;
-}
-
-
-// i번째 칸의 "학점 변화" 반환
-int smmObj_getCredit(int node_nr)
-{
-    return smmObj_board[node_nr].credit;
-}
-
-// i번째 칸의 "에너지 변화" 반환
-int smmObj_getEnergy(int node_nr)
-{
-    return smmObj_board[node_nr].energy;
-}
-#endif
-
-#if 0
-//element to string
-char* smmObj_getNodeName(smmNode_e type)
-{
-    return smmNodeName[type];
-}
-
-char* smmObj_getGradeName(smmGrade_e grade)
-{
-    return smmGradeName[grade];
-}
-#endif
