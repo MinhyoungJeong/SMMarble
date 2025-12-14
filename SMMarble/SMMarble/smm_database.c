@@ -40,7 +40,7 @@ static node_t* genNode(void)
     return ndPtr;
 }
 
-static node_t* smmList(int list_nr, int index)
+static node_t* smmList(int list_nr, int index) //연결리스트 안에서 index번째 node_t를 찾아서 반환
 {
     node_t* ndPtr = list_database[list_nr];
     if (listPtr[list_nr] != NULL && listPtr[list_nr]->index <= index)
@@ -205,12 +205,12 @@ int smmdb_len(int list_nr)
     input parameters : index
     return value : object pointer
 */
-void* smmdb_getData(int list_nr, int index)
+void* smmdb_getData(int list_nr, int index) // smmList로 찾은 node_t 안에 들어있는 실제 데이터(obj)를 반환
 {
     void* obj = NULL;
     node_t* ndPtr;
     
-    //parameter checking
+    //parameter checking : index번째에 해당하는 node_t 포인터를 찾아서 반환하라
     if ((ndPtr = smmList(list_nr, index)) != NULL)
     {
         obj = (void*)ndPtr->obj;

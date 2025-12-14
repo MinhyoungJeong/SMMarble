@@ -21,6 +21,12 @@ static int food_nr;
 static int festival_nr;
 static int player_nr;
 
+void actionNode(
+    smm_player_t* players, int player,
+    int* experimenting, int* expSuccess,
+    int labPos
+);
+
 // 변경 : players를 매개변수로 받도록 변경
 smm_player_t* generatePlayers(int n, int initEnergy);
 void printPlayerStatus(smm_player_t* players, int playerCount);
@@ -37,6 +43,17 @@ void printGrades(int player); //print all the grade history of the player
 #endif
 
 
+// 실험실 위치찾기
+int findLabPosition(void)
+{
+    for (int i = 0; i < board_nr; i++) {
+        void* node = smmdb_getData(LISTNO_NODE, i);
+        if (smmObj_getNodeType(node) == SMMNODE_TYPE_LABORATORY) {
+            return i;
+        }
+    }
+    return -1; // 없으면 에러
+}
 
 // (FIX) 보드 칸 이름 얻는 함수 (DB에서 꺼내서 getObjectName 호출)
 // 강의 실습 14주차 “get 호출 직전에 smmdb_getData()로 구조체를 받아오기”
@@ -60,23 +77,36 @@ void* findGrade(int player, char *lectureName)
     return NULL;
 }
 
-// 변경: smm_players → players 매개변수
-void goForward(smm_player_t* players, int player, int step)
+// 주사위 개수만큼 보드 위를 한칸씩 이동시키는 함수
+void goForward(smm_player_t* players, int player, int step) // 플레이어정보배열, player의 인덱스번호, 주사위 결과
 {
     printf("start from %i(%s) (%i)\n",
-           players[player].pos,                 // [변경]
+           players[player].pos, // 이동 전 상태 출력: 현재 인덱스, 칸이름, 주사위 눈
            getNodeNameByPos(players[player].pos),
            step);
 
     for (int i = 0; i < step; i++) {
         players[player].pos =
-            (players[player].pos + 1) % board_nr;
+            (players[player].pos + 1) % board_nr; // 루프를 돌 때마다 기존 위치에서 한 칸씩 앞으로 간 위치를 저장
 
-        printf("  => moved to %i(%s)\n",
-               players[player].pos,
-               getNodeNameByPos(players[player].pos));
+    void* node = smmdb_getData(LISTNO_NODE, players[player].pos);
+    // 현재 이동한 위치(pos)에 해당하는 노드 객체를 DB(linkedlist)에서 가져옴
+    int type = smmObj_getNodeType(node);
+    // 해당 노드가 HOME, FOOD, FESTIVAL 등 어떤 타입인지 확인
+
+    //  만약 type = HOME에 놓이면 에너지 회복
+        if (type == SMMNODE_TYPE_HOME) {
+            players[player].energy += smmObj_getNodeEnergy(node);
+            // HOME 노드의 energy 값을 가져와 플레이어 에너지에 더함
+            //HOME을 지나가면 에너지 회복
+        }
+    printf("  => moved to %i(%s)\n",
+        players[player].pos, // 이동 후의 위치(인덱스), 칸 이름 출력
+        getNodeNameByPos(players[player].pos));
     }
 }
+
+
 
 // 변경 -> players를 인자로 받아 사용
 void printPlayerStatus(smm_player_t* players, int playerCount)
@@ -133,34 +163,142 @@ int rolldie(int player)
 
     return (rand() % MAX_DIE + 1);
 }
-#if 0
+
 //action code when a player stays at a node
-void actionNode(int player)
-{
-    void *ptr = smmdb_getData(LISTNO_NODE,sm_players[player].pos);
-    int type = smmObj_getNodeType(sm_player)
-    int credit = smmObj_getNodeCredit
-    int energy = smmObj_getNodeEnergy
+void actionNode(smm_player_t* players, int player, int* experimenting, int* expSuccess,int labPos){
     
-    printf();
+    void* node = smmdb_getData(LISTNO_NODE, players[player].pos);
     
-    switch(type)
+    if (node == NULL) return;
+
+    int type   = smmObj_getNodeType(node);
+    int credit = smmObj_getNodeCredit(node);
+    int energy = smmObj_getNodeEnergy(node);
+    const char* nodeName = smmObj_getObjectName(node);
+
+    switch (type)
     {
-            //case lecture:
-        case SMMNODE_TYPE_LECTURE;
-            if(findGrade(,)!=NULL)
-                smm_players[player].credit += credit;
-            smm_players[player].energy -= energy;
+        case SMMNODE_TYPE_LECTURE:
+        {
+            // 수강 가능 조건: 에너지 충분 + 이전에 듣지 않은 강의인지 체크
+            if (players[player].energy < energy) {
+                printf("[LECTURE] not enough energy to take %s.\n", nodeName);
+                break;
+            }
+            if (findGrade(player, (char*)nodeName) != NULL) {
+                printf("[LECTURE] already took %s.\n", nodeName);
+                break;
+            }
+
+            // 수강 or 드랍중 선택
+            char choice;
+            printf("[LECTURE] %s Are you going to takie this course? (answer y or n) : ", nodeName);
+            scanf(" %c", &choice);
+
+            if (choice != 'y' && choice != 'Y') {
+                printf("[LECTURE] dropped.\n");
+                break;
+            }
+
+            // 수강 처리
+            players[player].credit += credit;
+            players[player].energy -= energy;
+            // 성적: A+ ~ C- 랜덤부여
+            GradeType grade = (GradeType)(rand() % (GRADE_C_MINUS + 1));
+            void* gradeObj = smmObj_genObject(
+                (char*)nodeName,
+                OBJTYPE_GRADE,
+                0,
+                credit,   // 학점 기록용
+                0,
+                grade
+            );
+            smmdb_addTail(LISTNO_OFFSET_GRADE + player, gradeObj);
+            printf("[LECTURE] took %s! credit +%d, energy -%d\n", nodeName, credit, energy);
+            break;
+        }
+
+        case SMMNODE_TYPE_RESTAURANT:
+        {
+            // 식당: 보충 에너지만큼 더함
+            players[player].energy += energy;
+            printf("[RESTAURANT] energy +%d\n", energy);
+            break;
+        }
+
+        case SMMNODE_TYPE_GOTOLAB:
+        {
+            // 실험 노드: 실험중 전환 + 성공기준값 설정 + 실험실이동
+            experimenting[player] = 1;
+            expSuccess[player] = (rand() % MAX_DIE) + 1;
+
+            printf("[EXPERIMENT] start! goal=%d, move to lab.\n", expSuccess[player]);
+            players[player].pos = labPos;
+            break;
+        }
+
+        case SMMNODE_TYPE_LABORATORY:
+        {
+            // 실험실: 실험중일 때만
+            if (!experimenting[player]) {
+                printf("[LAB] not experimenting. nothing happens.\n");
+                break;
+            }
+
+            // 실험 시도마다 에너지 소모
+            players[player].energy -= energy;
+
+            int die = rolldie(player);
+            printf("[LAB] roll=%d (goal=%d), energy -%d\n", die, expSuccess[player], energy);
+
+            if (die >= expSuccess[player]) {
+                experimenting[player] = 0;
+                printf("[LAB] success! experiment finished.\n");
+            } else {
+                printf("[LAB] failed. stay experimenting.\n");
+            }
+            break;
+        }
+
+        case SMMNODE_TYPE_FOODCHANGE:
+        {
+            // 보충찬스: 음식카드 랜덤 1장 뽑아 에너지 더함
+            int len = smmdb_len(LISTNO_FOODCARD);
+            if (len <= 0) {
+                printf("[FOOD] no food cards loaded.\n");
+                break;
+            }
+
+            int idx = rand() % len;
+            void* food = smmdb_getData(LISTNO_FOODCARD, idx);
+            int addE = smmObj_getNodeEnergy(food);
+
+            players[player].energy += addE;
+            printf("[FOOD] got '%s' energy +%d\n", smmObj_getObjectName(food), addE);
+            break;
+        }
+
+        case SMMNODE_TYPE_FESTIVAL:
+        {
+            // 축제: 축제카드 랜덤 1장 뽑기
+            int len = smmdb_len(LISTNO_FESTCARD);
+            if (len <= 0) {
+                printf("no festival cards\n");
+                break;
+            }
+
+            int idx = rand() % len;
+            void* fest = smmdb_getData(LISTNO_FESTCARD, idx);
+
+            printf("Please mission complete! : %s\n", smmObj_getObjectName(fest));
+            break;
+        }
+
+        default:
             
-            grade = rand()%SMMNODE_MAX_GRADE;
-            gradePtr = smmObj_genObject(smmObj_getObjectName(ptr),SMNODE_OBJTYPE_GRADE, type, credit, energy,grade)
-            smmdb_addTail(LISTNO_OFFSET)GRADE+player,gradePtr);
             break;
     }
 }
-#endif
-
-
 
 
 int main(int argc, const char * argv[]) {
@@ -192,14 +330,14 @@ int main(int argc, const char * argv[]) {
     while (fscanf(fp, "%s %i %i %i",
                       name, &type, &credit, &energy) == 4) {
 
-            // board를 배열이 아닌 DB(list)에 저장
+            // board를 DB(list)에 저장
             void* node = smmObj_genObject(
                 name,
-                OBJTYPE_BOARD,   // objType
+                OBJTYPE_BOARD,
                 type,
                 credit,
                 energy,
-                0                // grade unused
+                0
             );
             smmdb_addTail(LISTNO_NODE, node);
             board_nr++;
@@ -292,9 +430,7 @@ int main(int argc, const char * argv[]) {
         if (player_nr <= 0 || player_nr > MAX_PLAYER)
             printf("Invalid player number!\n");
 
-    }
-    
-    while (player_nr <= 0 || player_nr > MAX_PLAYER);
+    } while (player_nr <= 0 || player_nr > MAX_PLAYER);
     
     int initEnergy = 0;
     {
@@ -304,32 +440,40 @@ int main(int argc, const char * argv[]) {
         }
     }
     
-    //extern 제거
     smm_player_t* players = generatePlayers(player_nr, initEnergy);
+    
+    
+    int experimenting[MAX_PLAYER] = {0};
+    int expSuccess[MAX_PLAYER] = {0};
+    int labPos = findLabPosition();
+    
     cnt = 0;
     turn = 0;
+    
+    
     //3. SM Marble game starts ---------------------------------------------------------------------------------
-    while (cnt < 5) //is anybody graduated?
+    while (cnt < 5)   // 졸업 조건은 나중에 변경
     {
-        int die_result;
-        
-        //4-1. initial printing
         printPlayerStatus(players, player_nr);
-        
-        //4-2. die rolling (if not in experiment)
-        die_result = rolldie(turn);
-        
-        //4-3. go forward
-        goForward(players, turn, die_result);
 
-        //pos = pos + 2;
-        
-        //4-4. take action at the destination node of the board
-        //actionNode();
-        
-        //4-5. next turn
+        // 현재 위치의 노드 타입담기
+        void* curNode = smmdb_getData(LISTNO_NODE, players[turn].pos);
+        int curType = smmObj_getNodeType(curNode);
+
+        // 실험중 + 실험실이면 이동 x, 실험만 o
+        if (experimenting[turn] && curType == SMMNODE_TYPE_LABORATORY)
+        {
+            actionNode(players, turn, experimenting, expSuccess, labPos);
+        }
+        else // 실험중이 아니면 주사위 굴리기
+        {
+            int die_result = rolldie(turn);
+            goForward(players, turn, die_result);
+            actionNode(players, turn, experimenting, expSuccess, labPos);
+        }
+
         cnt++;
-        turn = (turn + 1)%player_nr;
+        turn = (turn + 1) % player_nr;
     }
     free(players);
     return 0;
