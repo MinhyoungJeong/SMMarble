@@ -65,6 +65,14 @@ typedef struct {
     GradeType grade;
 } smmObj_object_t;
 
+
+const char* smmObj_getGradeName(GradeType grade)
+{
+    if (grade < 0 || grade >= MAX_GRADE) return "INVALID";
+    return smmObj_gradeName[grade];
+}
+
+
 //배열 형태가 아니라 linkedlist - database에 넣기
 //object generation
 //node->확장시킬예정, 동적메모리형태로 할당하기

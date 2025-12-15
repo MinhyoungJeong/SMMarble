@@ -35,7 +35,8 @@ typedef enum {
     GRADE_D_PLUS,
     GRADE_D_ZERO,
     GRADE_D_MINUS,
-    GRADE_F
+    GRADE_F,
+    GRADE_INVALID //수강실패(에너지부족 or 중복수강일 경우)
 } GradeType;
 
 //object generation
@@ -48,7 +49,7 @@ int smmObj_getNodeCredit(void* obj);
 int smmObj_getNodeEnergy(void* obj);
 // 잠시 주석처리 int smmObj_getGradeValue(void* obj);
 
-
+const char* smmObj_getGradeName(GradeType grade);
 //구현에 있는 함수 원형 헤더에도 선언
 GradeType smmObj_getGrade(void* obj);
 
