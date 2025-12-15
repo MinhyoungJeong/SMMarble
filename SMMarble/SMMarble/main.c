@@ -32,11 +32,11 @@ void actionNode(
 int rolldie(int player, smm_player_t* players);
 smm_player_t* generatePlayers(int n, int initEnergy);
 void printPlayerStatus(smm_player_t* players, int playerCount);
-void goForward(smm_player_t* players, int player, int step);
+int goForward(smm_player_t* players, int player, int step);
 static float gradeToScore(GradeType grade);
 //function prototypes
 static int isHomePos(int pos); //완료
-int isGraduated(smm_player_t* players, int playerCount); // ok 구현완료
+int isGraduated(smm_player_t* players, int player, int passedHome); // ok 구현완료
 void printGrades(int player); // 구현완료상태
 float calcAverageGrade(int player); //calculate average grade of the player
 GradeType takeLecture(smm_player_t* players, int player,
@@ -118,30 +118,15 @@ GradeType takeLecture(smm_player_t* players, int player,
         (char*)lectureName, OBJTYPE_GRADE, 0, credit, 0, grade
     );
     smmdb_addTail(LISTNO_OFFSET_GRADE + player, gradeObj);
-    GradeType g = smmObj_getGrade(grade);
-    printf("[LECTURE] Took %s! grade = %sf\n",
-           lectureName, smmObj_getGradeName(g));
-
+    printf("[LECTURE] Took %s! grade=%s\n", lectureName, smmObj_getGradeName(grade));
     return grade;
 }
 
 
 //졸업 체크함수
-int isGraduated(smm_player_t* players, int playerCount)
+int isGraduated(smm_player_t* players, int player, int passedHome)
 {
-    for (int i = 0; i < playerCount; i++) {
-        void* node = smmdb_getData(LISTNO_NODE, players[i].pos);
-        if (!node) continue;
-
-        int type = smmObj_getNodeType(node);
-
-        if (players[i].credit >= GRADUATE_CREDIT &&
-            type == SMMNODE_TYPE_HOME)
-        {
-            return i;   // 졸업한 플레이어 인덱스반환
-        }
-
-    }
+    if (players[player].credit >= GRADUATE_CREDIT && passedHome) return player;
     return -1;
 }
 
@@ -192,8 +177,9 @@ void* findGrade(int player, const char *lectureName)
 }
 
 // 주사위 개수만큼 보드 위를 한칸씩 이동시키는 함수
-void goForward(smm_player_t* players, int player, int step) // 플레이어정보배열, player의 인덱스번호, 주사위 결과
+int goForward(smm_player_t* players, int player, int step) // 플레이어정보배열, player의 인덱스번호, 주사위 결과
 {
+    int passedHome = 0;
     printf("start from %i(%s) (%i)\n",
            players[player].pos, // 이동 전 상태 출력: 현재 인덱스, 칸이름, 주사위 눈
            getNodeNameByPos(players[player].pos),
@@ -208,17 +194,19 @@ void goForward(smm_player_t* players, int player, int step) // 플레이어정�
     int type = smmObj_getNodeType(node);
     // 해당 노드가 HOME, FOOD, FESTIVAL 등 어떤 타입인지 확인
 
-    //  만약 type = HOME에 놓이면 에너지 회복
-        if (type == SMMNODE_TYPE_HOME) {
-            players[player].energy += smmObj_getNodeEnergy(node);
-            // HOME 노드의 energy 값을 가져와 플레이어 에너지에 더함
-            //HOME을 지나가면 에너지 회복
+        // HOME 패스 : 에너지 회복 + passedHome 기록
+                if (type == SMMNODE_TYPE_HOME) {
+                    players[player].energy += smmObj_getNodeEnergy(node);
+                    passedHome = 1;
+                }
+
+                printf("  => moved to %i(%s)\n",
+                       players[player].pos,
+                       getNodeNameByPos(players[player].pos));
+            }
+
+            return passedHome;  // 이번 이동에서 HOME을 밟았으면 1 (졸업조건 위해 추가 12/15)
         }
-    printf("  => moved to %i(%s)\n",
-        players[player].pos, // 이동 후의 위치(인덱스), 칸 이름 출력
-        getNodeNameByPos(players[player].pos));
-    }
-}
 
 
 
@@ -295,7 +283,7 @@ void actionNode(smm_player_t* players, int player, int* experimenting, int* expS
         case SMMNODE_TYPE_LECTURE:
         {
             char choice;
-            printf("[LECTURE] %s ... (y/n): ", nodeName);
+            printf("[LECTURE] Are you going to take this lecture %s (y/n): ", nodeName);
             scanf(" %c", &choice);
 
             if (choice == 'y' || choice == 'Y') {
@@ -551,28 +539,31 @@ int main(int argc, const char * argv[]) {
     //3. SM Marble game starts ---------------------------------------------------------------------------------
     while (1)
     {
+        int passedHome = 0; // 루프 시작에서 선언 (스코프 해결)
+        int winner = -1;
+        
         printPlayerStatus(players, player_nr);
         void* curNode = smmdb_getData(LISTNO_NODE, players[turn].pos);
         int curType = smmObj_getNodeType(curNode);
-
+        
         if (experimenting[turn] && curType == SMMNODE_TYPE_LABORATORY)
         {
             actionNode(players, turn, experimenting, expSuccess, labPos);
+            // 실험실에서 이동 없으니 passedHome는 0 유지
         }
         else
         {
-            int die_result = rolldie(turn,players);
-            goForward(players, turn, die_result);
+            int die_result = rolldie(turn, players);
+            passedHome = goForward(players, turn, die_result); //반환값 연결
             actionNode(players, turn, experimenting, expSuccess, labPos);
         }
-
-        // 졸업 조건 체크: 학점 + HOME 도착
-        int winner = isGraduated(players, player_nr);
-            if (winner >= 0) {
-                printf("\n Congratulations! Finally, %s graduated!\n", players[winner].name);
-                printGrades(winner);
-                break;
-            }
+        
+        winner = isGraduated(players, turn, passedHome);
+        if (winner >= 0) {
+            printf("\nCongratulations! Finally, %s graduated!\n", players[winner].name);
+            printGrades(winner);
+            break;
+        }
         turn = (turn + 1) % player_nr;
     }
     free(players);
