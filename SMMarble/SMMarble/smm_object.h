@@ -8,18 +8,18 @@
 #ifndef smm_object_h
 #define smm_object_h
 
-#define OBJTYPE_BOARD 0
-#define OBJTYPE_GRADE 1
-#define OBJTYPE_FOOD  2
-#define OBJTYPE_FEST  3
+#define OBJTYPE_BOARD 0 // 보드 칸(노드) 오브젝트
+#define OBJTYPE_GRADE 1 // 성적 오브젝트
+#define OBJTYPE_FOOD  2 // 음식 카드 오브젝트
+#define OBJTYPE_FEST  3 // 축제 카드 오브젝트
 
-#define SMMNODE_TYPE_LECTURE                0
-#define SMMNODE_TYPE_RESTAURANT             1
-#define SMMNODE_TYPE_LABORATORY             2
-#define SMMNODE_TYPE_HOME                   3
-#define SMMNODE_TYPE_GOTOLAB                4
-#define SMMNODE_TYPE_FOODCHANGE             5
-#define SMMNODE_TYPE_FESTIVAL               6
+#define SMMNODE_TYPE_LECTURE                0 // 강의 노드
+#define SMMNODE_TYPE_RESTAURANT             1 // 식당 노드
+#define SMMNODE_TYPE_LABORATORY             2 // 실험실 노드
+#define SMMNODE_TYPE_HOME                   3 // 집 노드
+#define SMMNODE_TYPE_GOTOLAB                4 // 실험 노드
+#define SMMNODE_TYPE_FOODCHANGE             5 // 음식 찬스 노드
+#define SMMNODE_TYPE_FESTIVAL               6 // 축제 노드
 
 //object.c에 있던 enum을 헤더파일로 옮겨옴
 typedef enum {
@@ -41,17 +41,13 @@ typedef enum {
 
 //object generation
 void* smmObj_genObject(char* name, int objType, int type, int credit, int energy, GradeType grade);
-
-const char* smmObj_getObjectName(void* obj);
-int smmObj_getObjectType(void* obj);   // objType
-int smmObj_getNodeType(void* obj);     // type
-int smmObj_getNodeCredit(void* obj);
-int smmObj_getNodeEnergy(void* obj);
-// 잠시 주석처리 int smmObj_getGradeValue(void* obj);
-
-const char* smmObj_getGradeName(GradeType grade);
-//구현에 있는 함수 원형 헤더에도 선언
-GradeType smmObj_getGrade(void* obj);
+const char* smmObj_getObjectName(void* obj); // 오브젝트 이름(문자열) 반환
+int smmObj_getObjectType(void* obj);   // OBJTYPE_BOARD/FOOD/FEST/GRADE 중 하나를 가져오는 get 함수
+int smmObj_getNodeType(void* obj);     // 노드 타입 반환: SMMNODE_TYPE_HOME/LECTURE/ 중 하나
+int smmObj_getNodeCredit(void* obj); // credit반환:
+int smmObj_getNodeEnergy(void* obj); // energy 반환
+const char* smmObj_getGradeName(GradeType grade); // GradeType(enum) 을 문자열로 반환 : ex.GRADE_A_PLUS -> "A+"
+GradeType smmObj_getGrade(void* obj); // 오브젝트가 저장하고 있는 GradeType(enum) 값 반환
 
 //member retrieving
 //element to string

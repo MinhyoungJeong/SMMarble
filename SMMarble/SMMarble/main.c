@@ -11,41 +11,44 @@
 #include "smm_database.h"
 #include "smm_common.h"
 #include <stdio.h>
-#include <locale.h>
-
-#define BOARDFILEPATH "marbleBoardConfig.txt"
-#define FOODFILEPATH "marbleFoodConfig.txt"
-#define FESTFILEPATH "marbleFestivalConfig.txt"
-//board configuration parameters
-static int board_nr;
-static int food_nr;
-static int festival_nr;
-static int player_nr;
+#include <locale.h> //X-code 문자깨짐 이슈로 설정
+#define BOARDFILEPATH "marbleBoardConfig.txt" // 보드(노드) 설정 파일 경로
+#define FOODFILEPATH "marbleFoodConfig.txt"  // 음식 카드 설정 파일 경로
+#define FESTFILEPATH "marbleFestivalConfig.txt" // 축제 카드 설정 파일 경로
 
 
+//board configuration parameters : static 이므로 main.c 파일 내부에서만 접근 가능!
+static int board_nr; // 보드 칸(노드) 총 개수
+static int food_nr; // 음식 카드 총 개수
+static int festival_nr; // 축제 카드 총 개수
+static int player_nr; // 플레이어 수
+
+
+
+// actionNode: 플레이어가 현재 밟은 칸(node type)에 따라 행동을 실행
 void actionNode(
     smm_player_t* players, int player,
     int* experimenting, int* expSuccess,
     int labPos
 );
-
-// 변경 : players를 매개변수로 받도록 변경
-int rolldie(int player, smm_player_t* players);
-smm_player_t* generatePlayers(int n, int initEnergy);
-//void printPlayerStatus(smm_player_t* players, int playerCount);
-void printPlayerStatus(smm_player_t* players, int playerCount, int* experimenting);
-int goForward(smm_player_t* players, int player, int step);
-static float gradeToScore(GradeType grade);
-//function prototypes
-int isGraduated(smm_player_t* players, int player, int passedHome); // ok 구현완료
-void printGrades(int player); // 구현완료상태
-float calcAverageGrade(int player); //calculate average grade of the player
+int rolldie(int player, smm_player_t* players); // rolldie: 플레이어 주사위 굴리기
+smm_player_t* generatePlayers(int n, int initEnergy); // generatePlayers: n명의 플레이어를 생성, 메모리 동적할당하고 초기 에너지 설정
+void printPlayerStatus(smm_player_t* players, int playerCount, int* experimenting); // printPlayerStatus: 현재 모든 플레이어의 상태(이름,위치,학점,에너지,실험중) 출력
+int goForward(smm_player_t* players, int player, int step); // goForward: 주사위 step만큼 한 칸씩 이동시키고, 추후 학점 다 채우고 마지막으로 HOME을 지나갔는지 체크를 위해 (passedHome) 반환
+static float gradeToScore(GradeType grade); // gradeToScore: 성적(enum)을 GPA 점수(ex. 4.5)로 변환하는 내부 함수
+int isGraduated(smm_player_t* players, int player, int passedHome); // 졸업 조건 확인
+void printGrades(int player); // 플레이어 성적표 출력
+float calcAverageGrade(int player); // 플레이어 GPA 계산
 GradeType takeLecture(smm_player_t* players, int player,
-                      const char* lectureName, int credit, int energy);//ok 구현완료
-void* findGrade(int player, const char *lectureName);//ok 구현완료
-static float gradeToScore(GradeType grade);
+                      const char* lectureName, int credit, int energy); // takeLecture: 강의 노드에서 수강 시도(에너지 있는지/중복으로 들은건 아닌지 체크) 후 성적 생성 및 DB 저장
+void* findGrade(int player, const char *lectureName);// findGrade: 이미 수강한 강의인지 확인(있으면 해당 gradeObj 포인터 반환, 없으면 NULL)
 
 
+
+/* 함수 시작
+GPA 계산 함수
+특정 player의 수강 기록(grade 객체들)을 DB에서 꺼내 (점수 x 학점) 을 누적하고 총 학점으로 나눠 평균(GPA)을 구함
+*/
 float calcAverageGrade(int player)
 {
     int count = smmdb_len(LISTNO_OFFSET_GRADE + player);
@@ -59,7 +62,7 @@ float calcAverageGrade(int player)
         if (!gradeObj) continue;
 
         GradeType grade = smmObj_getGrade(gradeObj);
-        float point = gradeToScore(grade);          // 4.5, 4.0...
+        float point = gradeToScore(grade);          // 학점을 숫자로 변환
         int credit = smmObj_getNodeCredit(gradeObj); // 그 과목 학점
 
         totalPoints += point * credit;
@@ -70,29 +73,35 @@ float calcAverageGrade(int player)
     return totalPoints / (float)totalCredits;
 }
 
-//점수 변환을 위한 함수
+//static float gradeToScore: 점수 변환을 위한 함수 성적(enum) -> GPA 점수 변환 함수
 static float gradeToScore(GradeType grade)
 {
     switch (grade) {
-        case GRADE_A_PLUS:  return 4.5f;
-        case GRADE_A_ZERO:  return 4.0f;
+        case GRADE_A_PLUS: return 4.5f;
+        case GRADE_A_ZERO: return 4.0f;
         case GRADE_A_MINUS: return 3.7f;
-        case GRADE_B_PLUS:  return 3.5f;
-        case GRADE_B_ZERO:  return 3.0f;
+        case GRADE_B_PLUS: return 3.5f;
+        case GRADE_B_ZERO: return 3.0f;
         case GRADE_B_MINUS: return 2.7f;
-        case GRADE_C_PLUS:  return 2.5f;
-        case GRADE_C_ZERO:  return 2.0f;
+        case GRADE_C_PLUS: return 2.5f;
+        case GRADE_C_ZERO: return 2.0f;
         case GRADE_C_MINUS: return 1.7f;
-        case GRADE_D_PLUS:  return 1.5f;
-        case GRADE_D_ZERO:  return 1.0f;
+        case GRADE_D_PLUS: return 1.5f;
+        case GRADE_D_ZERO: return 1.0f;
         case GRADE_D_MINUS: return 0.7f;
-        case GRADE_F:       return 0.0f;
-        default:            return 0.0f;
+        case GRADE_F: return 0.0f;
+        default: return 0.0f;
     }
 }
 
-//수강함수
-GradeType takeLecture(smm_player_t* players, int player,
+/*
+강의 수강 함수
+강의 노드에서 호출됨
+에너지 부족하거나 중복 수강이면 실패(GRADE_INVALID)
+성공이면 학점 증가, 에너지 감소, 성적 생성 후 DB에 저장
+*/
+
+ GradeType takeLecture(smm_player_t* players, int player,
                       const char* lectureName, int credit, int energy)
 {
     // 수강 실패: 에너지 부족
@@ -120,25 +129,22 @@ GradeType takeLecture(smm_player_t* players, int player,
 }
 
 
-//졸업 체크함수
-int isGraduated(smm_player_t* players, int player, int passedHome)
+/*졸업 체크함수
+조건: 학점이 기준 이상 + 이번 이동에서 HOME을 지나가면 (passedHome=1 을 만족하면) 플레이어 인덱스 반환, 아니면 -1
+*/
+ int isGraduated(smm_player_t* players, int player, int passedHome)
 {
     if (players[player].credit >= GRADUATE_CREDIT && passedHome) return player;
     return -1;
 }
 
-// 성적 프린트 함수
+
 /*
-void printGrades(int player)
-{
-    int len = smmdb_len(LISTNO_OFFSET_GRADE + player);
-    printf(" Grade Report is as follows (%d) \n", player);
-    for (int i = 0; i < len; i++) {
-        void* g = smmdb_getData(LISTNO_OFFSET_GRADE + player, i);
-        if (!g) continue;
-        printf(" - %s credit: %d , grade:%.2f\n",smmObj_getObjectName(g),smmObj_getNodeCredit(g),gradeToScore(smmObj_getGrade(g)));
-    }
-}*/
+성적표 출력 함수
+해당 플레이어의 LISTNO_OFFSET_GRADE+player 리스트를 돌면서
+과목명,학점,성적을 성적표 형태로 출력
+마지막에 GPA도 출력
+ */
 
 void printGrades(int player)
 {
@@ -157,16 +163,19 @@ void printGrades(int player)
         printf("| %-18s | %-6d | %-6s |\n",
                smmObj_getObjectName(g),
                smmObj_getNodeCredit(g),
-               smmObj_getGradeName(grade));  // ← 핵심 변경
+               smmObj_getGradeName(grade));
     }
-
     printf("============================================================\n");
 
     float gpa = calcAverageGrade(player);
     printf("GPA (Average): %.2f\n", gpa);
 }
 
-// 실험실 위치찾기
+/* 실험실 위치찾기
+보드 전체를 훑어서 "LABORATORY 노드"가 있는 칸의 인덱스를 반환
+없으면 -1 반환 (에러/비정상 상황)
+*/
+
 int findLabPosition(void)
 {
     for (int i = 0; i < board_nr; i++) {
@@ -178,15 +187,23 @@ int findLabPosition(void)
     return -1; // 없으면 에러
 }
 
-// (FIX) 보드 칸 이름 얻는 함수 (DB에서 꺼내서 getObjectName 호출)
-// 강의 실습 14주차 “get 호출 직전에 smmdb_getData()로 구조체를 받아오기”
+/*보드 칸 이름 얻기 함수
+pos(칸 인덱스)를 주면 DB에서 해당 노드 오브젝트를 꺼내고 이름 반환
+node가 NULL이면 null 문자열 반환
+*/
+
 static const char* getNodeNameByPos(int pos)
 {
     void* node = smmdb_getData(LISTNO_NODE, pos);
     return node ? smmObj_getObjectName(node) : "(null)";
 }
 
-//findGrade: findGrade는 strcmp로 비교 + const char* 사용 + 못 찾으면 NULL 반환
+/*
+중복 수강 검사 함수
+player의 성적 리스트를 돌면서 lectureName과 같은 과목명이 있는지 찾음
+있으면 그 grade object 포인터 반환, 없으면 NULL 반환
+
+*/
 void* findGrade(int player, const char *lectureName)
 {
     int size = smmdb_len(LISTNO_OFFSET_GRADE+player);
@@ -194,13 +211,17 @@ void* findGrade(int player, const char *lectureName)
     for (i=0; i<size; i++) {
         void *ptr = smmdb_getData(LISTNO_OFFSET_GRADE+player, i);
         if (strcmp(smmObj_getObjectName(ptr), lectureName) == 0) {
-            return ptr; // (FIX) 모든 경로에서 반환
+            return ptr; //strcmp로 문자열 비교 + const char* 사용 + 못 찾으면 NULL 반환
         }
     }
     return NULL;
 }
 
-// 주사위 개수만큼 보드 위를 한칸씩 이동시키는 함수
+/* 주사위 개수만큼 보드 위를 한칸씩 이동시키는 함수
+step(주사위 눈)만큼 한 칸씩 이동
+이동 중 HOME을 밟으면 에너지 회복 + passedHome=1 기록  반환값: 이번 이동에서 HOME을 밟았는지 체크 (추후 학점 다 채우고 졸업시 활용)
+*/
+
 int goForward(smm_player_t* players, int player, int step) // 플레이어정보배열, player의 인덱스번호, 주사위 결과
 {
     int passedHome = 0;
@@ -208,31 +229,32 @@ int goForward(smm_player_t* players, int player, int step) // 플레이어정보
            players[player].pos, // 이동 전 상태 출력: 현재 인덱스, 칸이름, 주사위 눈
            getNodeNameByPos(players[player].pos),
            step);
-
+    
     for (int i = 0; i < step; i++) {
         players[player].pos =
-            (players[player].pos + 1) % board_nr; // 루프를 돌 때마다 기존 위치에서 한 칸씩 앞으로 간 위치를 저장
-
-    void* node = smmdb_getData(LISTNO_NODE, players[player].pos);
-    // 현재 이동한 위치(pos)에 해당하는 노드 객체를 DB(linkedlist)에서 가져옴
-    int type = smmObj_getNodeType(node);
-    // 해당 노드가 HOME, FOOD, FESTIVAL 등 어떤 타입인지 확인
-
+        (players[player].pos + 1) % board_nr; // 루프를 돌 때마다 기존 위치에서 한 칸씩 앞으로 간 위치를 저장
+        
+        void* node = smmdb_getData(LISTNO_NODE, players[player].pos);
+        // 현재 이동한 위치(pos)에 해당하는 노드 객체를 DB(linkedlist)에서 가져옴
+        int type = smmObj_getNodeType(node);
+        // 해당 노드가 HOME, FOOD, FESTIVAL 등 어떤 타입인지 확인
+        
         // HOME 패스 : 에너지 회복 + passedHome 기록
-                if (type == SMMNODE_TYPE_HOME) {
-                    players[player].energy += smmObj_getNodeEnergy(node);
-                    passedHome = 1;
-                }
-
-                printf("  => moved to %i(%s)\n",
-                       players[player].pos,
-                       getNodeNameByPos(players[player].pos));
-            }
-
-            return passedHome;  // 이번 이동에서 HOME을 밟았으면 1 (졸업조건 위해 추가 12/15)
+        if (type == SMMNODE_TYPE_HOME) {
+            players[player].energy += smmObj_getNodeEnergy(node);
+            passedHome = 1;
         }
+        
+        printf("  => moved to %i(%s)\n",
+               players[player].pos,
+               getNodeNameByPos(players[player].pos));
+    }
+    
+    return passedHome;  // 이번 이동에서 HOME을 밟았으면 1 (졸업조건 위해 추가 12/15)
+    
+}
 
-
+// 플레이어 상태 출력 함수
 void printPlayerStatus(smm_player_t* players, int playerCount, int* experimenting)
 {
     printf("============================================================\n");
@@ -252,6 +274,13 @@ void printPlayerStatus(smm_player_t* players, int playerCount, int* experimentin
     printf("============================================================\n");
 }
 
+/* 플레이어 생성 함수
+n명의 플레이어 배열을 동적 할당(malloc)으로 만들고
+초기 상태(pos=0, credit=0, energy=initEnergy) 세팅
+각 플레이어 이름을 입력받아서 저장
+완성된 players 배열의 시작 주소를 반환
+*/
+
 smm_player_t* generatePlayers(int n, int initEnergy)
 {
     smm_player_t* players =
@@ -268,9 +297,11 @@ smm_player_t* generatePlayers(int n, int initEnergy)
 
     }
 
-    return players; // [추가]
+    return players;
 }
 
+
+//주사위 굴리기 함수
 int rolldie(int player, smm_player_t* players)
 {
     int c;
@@ -294,7 +325,17 @@ int rolldie(int player, smm_player_t* players)
     return (rand() % MAX_DIE + 1);
 }
 
-//action code when a player stays at a node
+
+/* action code when a player stays at a node
+플레이어가 현재 칸에 도착했을 때 실행되는 액션 함수
+현재 플레이어 위치(players[player].pos)에 해당하는 노드를 DB에서 꺼냄
+그 노드의 type에 따라 강의/식당/실험/카드뽑기/축제 등을 switch 문으로 선택
+experimenting[player]: 현재 플레이어가 실험중인지(1 or 0) 체크
+expSuccess[player]: 실험 성공 기준(목표 주사위 값)
+labPos: 실험실 노드의 위치
+*/
+
+
 void actionNode(smm_player_t* players, int player, int* experimenting, int* expSuccess,int labPos){
     
     void* node = smmdb_getData(LISTNO_NODE, players[player].pos);
@@ -407,7 +448,7 @@ void actionNode(smm_player_t* players, int player, int* experimenting, int* expS
             int idx = rand() % len;
             void* fest = smmdb_getData(LISTNO_FESTCARD, idx);
             printf("############################################################\n");
-            printf("Festival time ~(~.~)~ Please complete misson! : %s\n", smmObj_getObjectName(fest));
+            printf("Festival time ~(~.~)~ Please complete the misson! : %s\n", smmObj_getObjectName(fest));
             printf("############################################################\n");
             break;
         }
@@ -421,7 +462,7 @@ void actionNode(smm_player_t* players, int player, int* experimenting, int* expS
 
 int main(int argc, const char * argv[]) {
     
-    setlocale(LC_ALL, "");
+    setlocale(LC_ALL, ""); // 로케일 설정(X-code 오류) : 한글 출력, 특수문자 출력 깨짐 방지
     FILE* fp;
     char name[MAX_CHARNAME];
     int type;
@@ -581,7 +622,7 @@ int main(int argc, const char * argv[]) {
     //3. SM Marble game starts ---------------------------------------------------------------------------------
     while (1)
     {
-        int passedHome = 0; // 루프 시작에서 선언 (스코프 해결)
+        int passedHome = 0;
         int winner = -1;
         
         printPlayerStatus(players, player_nr, experimenting);
