@@ -338,20 +338,22 @@ labPos: 실험실 노드의 위치
 
 void actionNode(smm_player_t* players, int player, int* experimenting, int* expSuccess,int labPos){
     
+    // 현재 플레이어 위치에 해당하는 보드노드 오브젝트를 DB에서 꺼내옴
     void* node = smmdb_getData(LISTNO_NODE, players[player].pos);
     
     if (node == NULL) return;
-
-    int type   = smmObj_getNodeType(node);
-    int credit = smmObj_getNodeCredit(node);
-    int energy = smmObj_getNodeEnergy(node);
+    
+    // node에서 필요한 정보 꺼내오기 (getter 사용)
+    int type   = smmObj_getNodeType(node); // 노드 타입(강의/식당 등등)
+    int credit = smmObj_getNodeCredit(node); // 그 노드에서 얻는 학점
+    int energy = smmObj_getNodeEnergy(node); // 그 노드에서 소모하는 에너지
     const char* nodeName = smmObj_getObjectName(node);
 
-    switch (type)
+    switch (type) // 노드 타입별로 다른 행동 실행
     {
         case SMMNODE_TYPE_LECTURE:
         {
-            char choice;
+            char choice; // 사용자 선택(y/n) 저장
             printf("###########################################################\n");
             printf("[LECTURE] Are u gonna take this lecture? %s(y/n):\n", nodeName);
             printf("###########################################################\n");
@@ -359,10 +361,11 @@ void actionNode(smm_player_t* players, int player, int* experimenting, int* expS
             
             scanf(" %c", &choice);
 
+            // y 또는 Y면 수강 진행
             if (choice == 'y' || choice == 'Y') {
                 takeLecture(players, player, nodeName, credit, energy);
             } else {
-                printf("[LECTURE] dropped.\n");
+                printf("[LECTURE] dropped.\n"); // 수강 안 함(드랍) -> 학점 변동 없는지 확인 완료
             }
             break;
         }
@@ -382,8 +385,9 @@ void actionNode(smm_player_t* players, int player, int* experimenting, int* expS
         case SMMNODE_TYPE_GOTOLAB:
         {
             // 실험 노드: 실험중 전환 + 성공기준값 설정 + 실험실이동
-            experimenting[player] = 1;
-            expSuccess[player] = (rand() % MAX_DIE) + 1;
+            experimenting[player] = 1; // 실험중 ON
+            expSuccess[player] = (rand() % MAX_DIE) + 1; // 목표값 1~6 사이로 설정
+
             printf("############################################################\n");
             printf("hohoho..!! [EXPERIMENT] get started! goal=%d, move to lab.\n", expSuccess[player]);
             printf("############################################################\n");
@@ -405,6 +409,7 @@ void actionNode(smm_player_t* players, int player, int* experimenting, int* expS
             int die = rolldie(player,players);
             printf("[LAB] roll=%d (goal=%d), energy -%d\n", die, expSuccess[player], energy);
 
+            // 성공 조건 : 주사위 값이 목표 이상
             if (die >= expSuccess[player]) {
                 experimenting[player] = 0;
                 printf("[LAB] success! experiment finished.\n");
@@ -419,7 +424,7 @@ void actionNode(smm_player_t* players, int player, int* experimenting, int* expS
             // 보충찬스: 음식카드 랜덤 1장 뽑아 에너지 더함
             int len = smmdb_len(LISTNO_FOODCARD);
             if (len <= 0) {
-                printf("[FOOD] no food cards loaded.\n");
+                printf("[FOOD] no food cards loaded.\n"); // 카드가 없으면 아무 것도 할 수 없음
                 break;
             }
 
@@ -441,7 +446,7 @@ void actionNode(smm_player_t* players, int player, int* experimenting, int* expS
             // 축제: 축제카드 랜덤 1장 뽑기
             int len = smmdb_len(LISTNO_FESTCARD);
             if (len <= 0) {
-                printf("no festival cards\n");
+                printf("no festival cards\n"); // 위에랑 똑같이 카드가 없으면 아무 것도 할 수 없음
                 break;
             }
 
@@ -585,7 +590,7 @@ int main(int argc, const char * argv[]) {
             printf("#                                                          #\n");
             printf("############################################################\n");
             printf("\n");
-        printf("Input player number:");
+        printf("Input player number:"); // 플레이어 수 입력
 
         if (scanf("%i", &player_nr) != 1) {
             printf("Invalid input! Please enter a number.\n");
@@ -595,12 +600,14 @@ int main(int argc, const char * argv[]) {
             while ((ch = getchar()) != '\n' && ch != EOF) {}
             continue;
         }
-
+        
+        // 플레이어 수 범위 검사
         if (player_nr <= 0 || player_nr > MAX_PLAYER)
             printf("Invalid player number!\n");
 
     } while (player_nr <= 0 || player_nr > MAX_PLAYER);
     
+    //시작 칸(0번 노드)의 에너지를 초기 에너지로 설정 (초기화)
     int initEnergy = 0;
     {
         void* startNode = smmdb_getData(LISTNO_NODE, 0);
@@ -609,11 +616,13 @@ int main(int argc, const char * argv[]) {
         }
     }
     
+    // 플레이어 생성
     smm_player_t* players = generatePlayers(player_nr, initEnergy);
 
+    // 실험 관련 상태 배열
     int experimenting[MAX_PLAYER] = {0};
     int expSuccess[MAX_PLAYER] = {0};
-    int labPos = findLabPosition();
+    int labPos = findLabPosition(); //실험실 위치 찾기
     
     cnt = 0;
     turn = 0;
@@ -622,13 +631,15 @@ int main(int argc, const char * argv[]) {
     //3. SM Marble game starts ---------------------------------------------------------------------------------
     while (1)
     {
-        int passedHome = 0;
-        int winner = -1;
+        int passedHome = 0;  // 이번 턴에서 HOME을 지나갔는지
+        int winner = -1; // 졸업한 플레이어 인덱스
         
+        // 현재 상태 출력
         printPlayerStatus(players, player_nr, experimenting);
+        // 현재 플레이어의 위치 노드 정보
         void* curNode = smmdb_getData(LISTNO_NODE, players[turn].pos);
         int curType = smmObj_getNodeType(curNode);
-        
+        // 만약 실험중이고 실험실이면 이동 없이 바로 action
         if (experimenting[turn] && curType == SMMNODE_TYPE_LABORATORY)
         {
             actionNode(players, turn, experimenting, expSuccess, labPos);
@@ -636,17 +647,19 @@ int main(int argc, const char * argv[]) {
         }
         else
         {
-            int die_result = rolldie(turn, players);
-            passedHome = goForward(players, turn, die_result); //반환값 연결
-            actionNode(players, turn, experimenting, expSuccess, labPos);
+            int die_result = rolldie(turn, players); // 주사위 굴림
+            passedHome = goForward(players, turn, die_result);  // 이동하고 HOME 통과 여부 확인
+            actionNode(players, turn, experimenting, expSuccess, labPos); // 이동 후 노드 액션 실행
         }
         
+        // 졸업 조건 검사
         winner = isGraduated(players, turn, passedHome);
         if (winner >= 0) {
             printf("############################################################\n");
             printf("\nCongratulations! Finally, %s graduated!\n", players[winner].name);
             printf("############################################################\n");
             
+            // 졸업자 성적표 출력
             printGrades(winner);
             
             printf("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\n");
@@ -657,6 +670,6 @@ int main(int argc, const char * argv[]) {
         }
         turn = (turn + 1) % player_nr;
     }
-    free(players);
+    free(players); // 동적 할당한 메모리 해제
     return 0;
 }
