@@ -44,9 +44,9 @@ void* smmObj_genObject(char* name, int objType, int type, int credit, int energy
 const char* smmObj_getObjectName(void* obj); // 오브젝트 이름(문자열) 반환
 int smmObj_getObjectType(void* obj);   // OBJTYPE_BOARD/FOOD/FEST/GRADE 중 하나를 가져오는 get 함수
 int smmObj_getNodeType(void* obj);     // 노드 타입 반환: SMMNODE_TYPE_HOME/LECTURE/ 중 하나
-int smmObj_getNodeCredit(void* obj); // credit반환:
+int smmObj_getNodeCredit(void* obj); // credit반환
 int smmObj_getNodeEnergy(void* obj); // energy 반환
-const char* smmObj_getGradeName(GradeType grade); // GradeType(enum) 을 문자열로 반환 : ex.GRADE_A_PLUS -> "A+"
+const char* smmObj_getGradeName(GradeType grade); // GradeType(enum) 을 문자열로 반환 : GRADE_A_PLUS -> A+
 GradeType smmObj_getGrade(void* obj); // 오브젝트가 저장하고 있는 GradeType(enum) 값 반환
 
 //member retrieving

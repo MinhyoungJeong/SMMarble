@@ -43,29 +43,6 @@ static char smmObj_gradeName[MAX_GRADE][MAX_CHARNAME] = {
     "F",
 };
 
-/*
- static int smmObj_gradePoint[MAX_GRADE]: 성적을 숫자 점수로 매핑하는 테이블
- 예: A+면 0점, F면 12점, 평점을 구하기 위해 만든 함수
- */
-
-static int smmObj_gradePoint[MAX_GRADE] = {
-    0, // A+
-    1, // A0
-    2, // A-
-    3, // B+
-    4, // B0
-    5, // B-
-    6, // C+
-    7, // C0
-    8, // C-
-    9, // D+
-    10, // D0
-    11, // D-
-    12  // F
-};
-
-//현재 사용 x
-static int smm_nodeNr=0;
 
 // 노드,카드,성적을 한번에 관리하는 Object
 
@@ -116,7 +93,7 @@ static smmObj_object_t* castObj(void* obj)
 }
 
 
-// getter 함수들 : 입력은 무조건 void*
+// getter 함수들 (위의castObj 함수로 캐스팅하도록 설계)
 const char* smmObj_getObjectName(void* obj)
 {
     return castObj(obj)->name;
